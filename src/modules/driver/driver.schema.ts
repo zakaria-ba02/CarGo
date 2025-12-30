@@ -18,9 +18,6 @@ export class Driver {
   @Prop({ type: [Types.ObjectId], ref: 'Service', default: [] })
   services: Types.ObjectId[];
 
- 
-
-
   @Prop({ required: true })
   licenseNumber: string;
 

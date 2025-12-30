@@ -181,23 +181,23 @@ export class DriverService {
    * تحديث تقييم السائق بناءً على رحلة جديدة
    * - يحسب المتوسط الجديد للتقييم
    */
-  async updateDriverRating(driverId: string, newRating: number): Promise<Driver> {
+   async updateDriverRating(driverId: string, newRating: number): Promise<Driver> {
     const driver = await this.driverModel.findById(driverId);
     if (!driver) throw new NotFoundException('السائق غير موجود');
-
-    const currentRating = driver.rating || 0;
-    const totalTrips = driver.totalTrips || 0;
-    const updatedRating = (currentRating * totalTrips + newRating) / (totalTrips + 1);
-
+  
+    const currentRating = driver.rating ?? newRating; 
+    const updatedRating = (currentRating + newRating) / 2;
+  
     const updatedDriver = await this.driverModel.findByIdAndUpdate(
-      driverId,
+     driverId,
       { $set: { rating: updatedRating } },
       { new: true },
     );
-
+  
     if (!updatedDriver) throw new NotFoundException('السائق غير موجود');
     return updatedDriver;
   }
+  
 
   /**
    * جلب جميع السائقين

@@ -1,14 +1,18 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { DriverService } from './driver.service';
 import { CreateDriverDto, UpdateDriverDto } from './driver.dto';
 import { DriverStatus } from './driver.schema';
 import { AuthWithRoles } from '../auth/decorators/auth.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('drivers')
+@UseGuards(JwtAuthGuard)
+
 export class DriverController {
   constructor(private readonly driverService: DriverService) {}
 
   @Post()
+ 
   @AuthWithRoles('admin')
   async createDriver(
     @Query('userId') userId: string,
@@ -111,7 +115,7 @@ export class DriverController {
   }
 
   @Put(':driverId/rating')
-  @AuthWithRoles('custmor')
+  //@AuthWithRoles('custmor')
   async updateDriverRating(
     @Param('driverId') driverId: string,
     @Body() data: { rating: number },
