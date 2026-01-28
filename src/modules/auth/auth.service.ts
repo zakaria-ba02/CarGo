@@ -38,6 +38,12 @@ export class AuthService {
       throw new ConflictException('البريد الإلكتروني مسجل بالفعل');
     }
 
+    // ✅ تحقق من رقم الهاتف
+  const existingUserByPhone = await this.userModel.findOne({ phone }).lean().exec();
+   if (existingUserByPhone) {
+    throw new ConflictException('رقم الهاتف مستخدم مسبقاً');
+    }    
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new this.userModel({

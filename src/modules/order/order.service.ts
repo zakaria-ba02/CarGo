@@ -10,7 +10,6 @@ import {
   Order,
   OrderStatus,
   OrderType,
-  DriverLocationRecord,
 } from './order.schema';
 
 import {
@@ -22,30 +21,58 @@ import {
 import { NotificationService } from '../notification/notification.service';
 import { DriverService } from '../driver/driver.service';
 import { Vehicle } from '../vehicle/vehicle.schema';
+import { Service } from '../service/service.schema';
 
 @Injectable()
 export class OrderService {
   constructor(
     @InjectModel(Order.name)
     private readonly orderModel: Model<Order>,
+
     private readonly driverService: DriverService,
-    @InjectModel(Vehicle.name)  // ✅ إضافة InjectModel هنا
+
+    @InjectModel(Vehicle.name)
     private readonly vehicleModel: Model<Vehicle>,
+
     private readonly notifi: NotificationService,
 
-    @InjectModel('Service')
-    private readonly serviceModel: Model<any>,
+    @InjectModel(Service.name)
+    private readonly serviceModel: Model<Service>,
   ) {}
 
   // =====================================================
-  // CREATE
+  // 🔧 HELPER: Populate الحقول المرتبطة
   // =====================================================
+  private getPopulateOptions() {
+    return [
+      { path: 'userId', select: '-password' },
+      { path: 'vehicleId' },
+      { path: 'serviceId' },
+      { path: 'driverId', select: '-password' },
+    ];
+  }
 
+  // =====================================================
+  // CREATE ORDER
+  // =====================================================
   async createOrder(
     userId: string,
     dto: CreateOrderDto,
   ): Promise<{ order: Order; nearbyDrivers: any[] }> {
-    // التحقق من السيارة إذا تم اختيارها
+
+    if (!dto.location) {
+      throw new BadRequestException('موقع الطلب مطلوب');
+    }
+
+    const service = await this.serviceModel.findById(dto.serviceId).lean();
+    if (!service) {
+      throw new BadRequestException('الخدمة غير موجودة');
+    }
+
+    if (typeof service.basePrice !== 'number' || service.basePrice <= 0) {
+      throw new BadRequestException('سعر الخدمة غير صالح');
+    }
+
     if (dto.vehicleId) {
       const vehicle = await this.vehicleModel.findOne({
         _id: dto.vehicleId,
@@ -58,7 +85,6 @@ export class OrderService {
       }
     }
 
-    // إنشاء الطلب
     const order = new this.orderModel({
       userId: new Types.ObjectId(userId),
       vehicleId: dto.vehicleId
@@ -69,17 +95,24 @@ export class OrderService {
       scheduledAt: dto.scheduledAt,
       location: dto.location,
       notes: dto.notes,
+      totalPrice: service.basePrice,
       status: OrderStatus.PENDING,
       isLocationTrackingActive: false,
       driverLocationHistory: [],
     });
 
     const savedOrder = await order.save();
-    if (!savedOrder) {
-      throw new BadRequestException('حدث خطأ أثناء حفظ الطلب');
+
+    // ✅ Populate البيانات قبل الإرجاع
+    const populatedOrder = await this.orderModel
+      .findById(savedOrder._id)
+      .populate(this.getPopulateOptions())
+      .exec();
+
+    if (!populatedOrder) {
+      throw new BadRequestException('فشل في إنشاء الطلب');
     }
 
-    // إشعار المستخدم
     await this.notifi.createNotification({
       orderId: savedOrder._id.toString(),
       userId,
@@ -87,71 +120,66 @@ export class OrderService {
       message: 'جاري البحث عن سائق قريب منك',
     });
 
-    // البحث عن سائقين قريبين
-    if (!dto.location) {
-      throw new BadRequestException('موقع الطلب مطلوب');
-    }
-    
     const nearbyDrivers =
       await this.driverService.getNearbyAvailableDrivers(
         dto.location.latitude,
         dto.location.longitude,
-        dto.radius || 5,
+        dto.radius ?? 5,
       );
-    
 
-    return {
-      order: savedOrder,
-      nearbyDrivers,
-    };
+    return { order: populatedOrder, nearbyDrivers };
   }
 
   // =====================================================
   // GET
   // =====================================================
-
   async getOrderById(orderId: string): Promise<Order> {
     const order = await this.orderModel
       .findById(orderId)
-      .populate('userId vehicleId serviceId driverId')
-      .exec();
+      .populate(this.getPopulateOptions());
 
     if (!order) throw new NotFoundException('الطلب غير موجود');
     return order;
   }
 
-  async getOrdersByUserId(
-    userId: string,
-    status?: OrderStatus,
-  ): Promise<Order[]> {
+  // ✅ مُصلح: إضافة populate
+  async getOrdersByUserId(userId: string, status?: OrderStatus) {
     const query: any = { userId: new Types.ObjectId(userId) };
     if (status) query.status = status;
-
-    return this.orderModel.find(query).sort({ createdAt: -1 }).exec();
+    return this.orderModel
+      .find(query)
+      .populate(this.getPopulateOptions())
+      .sort({ createdAt: -1 });
   }
 
-  async getOrdersByDriverId(
-    driverId: string,
-    status?: OrderStatus,
-  ): Promise<Order[]> {
+  // ✅ مُصلح: إضافة populate
+  async getOrdersByDriverId(driverId: string, status?: OrderStatus) {
     const query: any = { driverId: new Types.ObjectId(driverId) };
     if (status) query.status = status;
-
-    return this.orderModel.find(query).sort({ createdAt: -1 }).exec();
+    return this.orderModel
+      .find(query)
+      .populate(this.getPopulateOptions())
+      .sort({ createdAt: -1 });
   }
 
-  async getAvailableOrders(orderType?: OrderType): Promise<Order[]> {
+  // ✅ مُصلح: إضافة populate
+  async getAvailableOrders(orderType?: OrderType) {
     const query: any = { status: OrderStatus.PENDING };
     if (orderType) query.orderType = orderType;
-
-    return this.orderModel.find(query).sort({ createdAt: 1 }).exec();
+    return this.orderModel
+      .find(query)
+      .populate(this.getPopulateOptions())
+      .sort({ createdAt: 1 });
   }
 
-  async getOrdersByStatus(status?: OrderStatus): Promise<Order[]> {
+  // ✅ مُصلح: إضافة populate
+  async getOrdersByStatus(status?: OrderStatus) {
     const query: any = {};
     if (status) query.status = status;
-
-    return this.orderModel.find(query).sort({ createdAt: -1 }).exec();
+    return this.orderModel
+      .find(query)
+      .populate(this.getPopulateOptions())
+      .sort({ createdAt: -1 });
   }
 
   async getOrderStatistics() {
@@ -169,189 +197,175 @@ export class OrderService {
   // =====================================================
   // UPDATE
   // =====================================================
-
-  async assignDriverToOrder(
-    orderId: string,
-    driverId: string,
-  ): Promise<Order> {
-    const order = await this.orderModel.findByIdAndUpdate(
-      orderId,
-      {
-        driverId: new Types.ObjectId(driverId),
-        status: OrderStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-      { new: true },
-    );
-
+  async assignDriverToOrder(orderId: string, driverId: string) {
+    const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
-    // إشعار
-    if (!order.userId) throw new NotFoundException('مستخدم الطلب غير موجود');
-    await this.notifi.createNotification({
-      orderId: order._id.toString(),
-      userId: order.userId.toString(),
-      title: 'تم قبول طلبك',
-      message: 'تم تعيين سائق لطلبك بنجاح',
-    });
+    order.driverId = new Types.ObjectId(driverId);
+    order.status = OrderStatus.ACCEPTED;
+    order.acceptedAt = new Date();
 
-    return order;
+    await order.save();
+
+    // ✅ إرجاع الطلب مع populate
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
   }
 
-  async updateOrderStatus(
-    orderId: string,
-    dto: UpdateOrderStatusDto,
-  ): Promise<Order> {
-    const update: any = { status: dto.status };
+  // ================== 🔥 NEW 🔥 ==================
+  async startServiceExecution(orderId: string) {
+    const order = await this.orderModel.findById(orderId);
 
-    if (dto.status === OrderStatus.IN_PROGRESS) {
-      update.startedAt = new Date();
-      update.isLocationTrackingActive = true;
+    if (!order) {
+      throw new NotFoundException('الطلب غير موجود');
     }
 
-    if (dto.status === OrderStatus.COMPLETED) {
-      update.completedAt = new Date();
-      update.isLocationTrackingActive = false;
+    if (order.status !== OrderStatus.ACCEPTED) {
+      throw new BadRequestException(
+        'لا يمكن بدء التنفيذ إلا بعد قبول الطلب',
+      );
     }
 
-    const order = await this.orderModel.findByIdAndUpdate(
-      orderId,
-      update,
-      { new: true },
-    );
+    order.status = OrderStatus.IN_PROGRESS;
+    order.startedAt = new Date();
+    order.isLocationTrackingActive = true;
 
-    if (!order) throw new NotFoundException('الطلب غير موجود');
-    if (!order.userId) throw new NotFoundException('مستخدم الطلب غير موجود');
+    await order.save();
 
-    await this.notifi.createNotification({
-      orderId: order._id.toString(),
-      userId: order.userId.toString(),
-      title: 'تحديث حالة الطلب',
-      message: `تم تحديث حالة الطلب إلى ${order.status}`,
-    });
-
-    return order;
-  }
-
-  async startServiceExecution(orderId: string): Promise<Order> {
-    const order = await this.orderModel.findByIdAndUpdate(
-      orderId,
-      {
-        status: OrderStatus.IN_PROGRESS,
-        startedAt: new Date(),
-        isLocationTrackingActive: true,
-      },
-      { new: true },
-    );
-
-    if (!order) throw new NotFoundException('الطلب غير موجود');
-    if (!order.userId) throw new NotFoundException('مستخدم الطلب غير موجود');
+    // ✅ Populate قبل الإرجاع
+    const populatedOrder = await this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
 
     await this.notifi.createNotification({
-      orderId: order._id.toString(),
+      orderId: orderId,
       userId: order.userId.toString(),
       title: 'بدأ تنفيذ الطلب',
       message: 'السائق بدأ بتنفيذ الخدمة',
     });
 
-    return order;
+    return populatedOrder;
   }
+  // =====================================================
 
-  async cancelOrder(orderId: string): Promise<Order> {
+  // ✅ مُصلح: إضافة دعم driverId للسائق عند قبول الطلب
+  async updateOrderStatus(orderId: string, dto: UpdateOrderStatusDto & { driverId?: string }) {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('الطلب غير موجود');
-    if (!order.userId) throw new NotFoundException('مستخدم الطلب غير موجود');
 
-    if (
-      order.status !== OrderStatus.PENDING &&
-      order.status !== OrderStatus.ACCEPTED
-    ) {
+    order.status = dto.status;
+
+    // ✅ إذا كان السائق يقبل الطلب
+    if (dto.driverId) {
+      order.driverId = new Types.ObjectId(dto.driverId);
+    }
+
+    if (dto.status === OrderStatus.ACCEPTED) {
+      order.acceptedAt = new Date();
+    }
+
+    if (dto.status === OrderStatus.IN_PROGRESS) {
+      order.startedAt = new Date();
+      order.isLocationTrackingActive = true;
+    }
+
+    if (dto.status === OrderStatus.COMPLETED) {
+      order.completedAt = new Date();
+      order.isLocationTrackingActive = false;
+    }
+
+    await order.save();
+
+    // ✅ إرجاع مع populate
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
+  }
+
+  async cancelOrder(orderId: string) {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new NotFoundException('الطلب غير موجود');
+
+    if (![OrderStatus.PENDING, OrderStatus.ACCEPTED].includes(order.status)) {
       throw new BadRequestException('لا يمكن إلغاء الطلب في هذه الحالة');
     }
 
     order.status = OrderStatus.CANCELLED;
     order.isLocationTrackingActive = false;
 
-    const saved = await order.save();
+    await order.save();
 
-    await this.notifi.createNotification({
-      orderId: saved._id.toString(),
-      userId: saved.userId.toString(),
-      title: 'تم إلغاء الطلب',
-      message: 'تم إلغاء الطلب بنجاح',
-    });
-
-    return saved;
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
   }
 
-  async rateOrder(orderId: string, dto: RateOrderDto): Promise<Order> {
-    const order = await this.orderModel.findByIdAndUpdate(
-      orderId,
-      {
-        isRated: true,
-        rating: dto.rating,
-        ratingComment: dto.comment,
-      },
-      { new: true },
-    );
-
+  async rateOrder(orderId: string, dto: RateOrderDto) {
+    const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('الطلب غير موجود');
-    return order;
+
+    order.isRated = true;
+    order.rating = dto.rating;
+    order.ratingComment = dto.comment;
+
+    await order.save();
+
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
   }
 
   // =====================================================
   // LOCATION
   // =====================================================
-
   async updateDriverLocationTracking(
     orderId: string,
     latitude: number,
     longitude: number,
     address: string,
-  ): Promise<Order> {
+  ) {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
-    if (!order.driverLocationHistory) {
-      order.driverLocationHistory = [];
-    }
-
-    const record: DriverLocationRecord = {
+    order.driverLocationHistory ??= [];
+    order.driverLocationHistory.push({
       latitude,
       longitude,
       address,
       recordedAt: new Date(),
-    };
+    });
 
-    order.driverLocationHistory.push(record);
-    return order.save();
+    await order.save();
+
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
   }
 
-  async startLocationTracking(orderId: string): Promise<Order> {
-    const order = await this.orderModel.findByIdAndUpdate(
+  async startLocationTracking(orderId: string) {
+    await this.orderModel.findByIdAndUpdate(
       orderId,
       { isLocationTrackingActive: true },
       { new: true },
     );
 
-    if (!order) throw new NotFoundException('الطلب غير موجود');
-    return order;
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
   }
 
-  async stopLocationTracking(orderId: string): Promise<Order> {
-    const order = await this.orderModel.findByIdAndUpdate(
+  async stopLocationTracking(orderId: string) {
+    await this.orderModel.findByIdAndUpdate(
       orderId,
       { isLocationTrackingActive: false },
       { new: true },
     );
 
-    if (!order) throw new NotFoundException('الطلب غير موجود');
-    return order;
+    return this.orderModel
+      .findById(orderId)
+      .populate(this.getPopulateOptions());
   }
-
-  // =====================================================
-  // DELETE
-  // =====================================================
 
   async deleteOrder(orderId: string) {
     const result = await this.orderModel.findByIdAndDelete(orderId);

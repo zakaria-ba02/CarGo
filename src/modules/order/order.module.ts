@@ -9,6 +9,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { DriverModule } from '../driver/driver.module';
 import { VehicleModule } from '../vehicle/vehicle.module';
 import { Vehicle, VehicleSchema } from '../vehicle/vehicle.schema';
+import { ServiceModule } from '../service/service.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { Vehicle, VehicleSchema } from '../vehicle/vehicle.schema';
     ]),
     NotificationModule,
     DriverModule,
-    VehicleModule
+    VehicleModule,
+    ServiceModule,
   ],
   controllers: [OrderController],
   providers: [OrderService],

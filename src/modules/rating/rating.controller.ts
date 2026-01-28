@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { RatingService } from './rating.service';
 import { CreateRatingDto, UpdateRatingDto } from './rating.dto';
 import { AuthWithRoles } from '../auth/decorators/auth.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('ratings')
+@UseGuards(JwtAuthGuard)
+
 export class RatingController {
   constructor(private readonly ratingService: RatingService) {}
 

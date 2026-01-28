@@ -34,8 +34,9 @@ export class OrderLocationDto {
 // ============================================
 
 export class CreateOrderDto {
+  @IsOptional()
   @IsString()
-  vehicleId: string;
+  vehicleId?: string;
 
   @IsString()
   serviceId: string;

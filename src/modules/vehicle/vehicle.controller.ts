@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { VehicleService } from './vehicle.service';
@@ -14,8 +15,11 @@ import { CreateVehicleDto, UpdateVehicleDto } from './vehicle.dto';
 
 import { AuthWithRoles } from '../auth/decorators/auth.decorator';
 import { UserId } from '../auth/decorators/user-id.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('vehicles')
+@UseGuards(JwtAuthGuard)
+
 export class VehicleController {
   constructor(private readonly vehicleService: VehicleService) {}
 

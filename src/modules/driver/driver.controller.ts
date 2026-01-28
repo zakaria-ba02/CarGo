@@ -7,12 +7,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('drivers')
 @UseGuards(JwtAuthGuard)
-
 export class DriverController {
   constructor(private readonly driverService: DriverService) {}
 
   @Post()
- 
   @AuthWithRoles('admin')
   async createDriver(
     @Query('userId') userId: string,
@@ -76,8 +74,9 @@ export class DriverController {
     return await this.driverService.updateDriver(driverId, updateDriverDto);
   }
 
+  // ✅ مُصلح: السماح للسائق بتحديث حالته
   @Put(':driverId/status')
-  @AuthWithRoles('admin')
+  @AuthWithRoles('admin', 'driver')
   async updateDriverStatus(
     @Param('driverId') driverId: string,
     @Body() data: { status: DriverStatus },
@@ -85,8 +84,9 @@ export class DriverController {
     return await this.driverService.updateDriverStatus(driverId, data.status);
   }
 
+  // ✅ مُصلح: السماح للسائق بتحديث موقعه
   @Put(':driverId/location')
-  @AuthWithRoles('driver')
+  @AuthWithRoles('driver', 'admin')
   async updateDriverLocation(
     @Param('driverId') driverId: string,
     @Body() locationData: { latitude: number; longitude: number; address: string },
@@ -105,8 +105,9 @@ export class DriverController {
     return await this.driverService.verifyDriver(driverId);
   }
 
+  // ✅ مُصلح: السماح للسائق بإضافة أرباحه
   @Put(':driverId/earnings')
-  @AuthWithRoles('admin')
+  @AuthWithRoles('driver', 'admin')
   async addEarnings(
     @Param('driverId') driverId: string,
     @Body() data: { amount: number },
@@ -115,7 +116,7 @@ export class DriverController {
   }
 
   @Put(':driverId/rating')
-  //@AuthWithRoles('custmor')
+  @AuthWithRoles('customer', 'admin')
   async updateDriverRating(
     @Param('driverId') driverId: string,
     @Body() data: { rating: number },
@@ -123,8 +124,9 @@ export class DriverController {
     return await this.driverService.updateDriverRating(driverId, data.rating);
   }
 
+  // ✅ مُصلح: السماح للسائق بزيادة رحلاته
   @Put(':driverId/trips')
-  @AuthWithRoles('driver')
+  @AuthWithRoles('driver', 'admin')
   async incrementTotalTrips(@Param('driverId') driverId: string) {
     return await this.driverService.incrementTotalTrips(driverId);
   }

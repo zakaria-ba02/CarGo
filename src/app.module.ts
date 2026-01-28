@@ -28,7 +28,7 @@ import { AuthModule } from './modules/auth/auth.module';
 
     // اتصال MongoDB
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/car-services',
+      process.env.MONGODB_URI || 'mongodb+srv://baroudamohmmed_db_user:aaa123aaa@cluster0.nu13vho.mongodb.net/?tls=true&tlsCertificateKeyFilePassword=aaa123aaa',
     ),
 
     // جميع الـ Modules

@@ -1,120 +1,126 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+} from '@nestjs/common';
+
 import { AppService } from './service.service';
 import { CreateServiceDto, UpdateServiceDto } from './service.dto';
 import { ServiceType } from './service.schema';
 
-@Controller('services') // تحديد الـ route الأساسي لجميع هذه الدوال
+import { AuthWithRoles } from '../auth/decorators/auth.decorator';
+
+@Controller('services')
 export class ServiceController {
-  constructor(private readonly appService: AppService) {} // حقن Service (AppService) لاستخدامه في جميع الدوال
+  constructor(private readonly appService: AppService) {}
 
-  // ==========================
-  // إنشاء خدمة جديدة
-  // ==========================
-  @Post()
-  async createService(@Body() createServiceDto: CreateServiceDto) {
-    // استقبال بيانات الخدمة من الجسم وتمريرها لـ AppService لحفظها
-    return await this.appService.createService(createServiceDto);
-  }
+  // =====================================================
+  // 👤 CUSTOMER + 🚗 DRIVER + 🛠 ADMIN (عرض فقط)
+  // =====================================================
 
-  // ==========================
-  // جلب كل الخدمات (مع خيار تصفية النشطة فقط)
-  // ==========================
+  /** جلب كل الخدمات (مع خيار تصفية النشطة فقط) */
   @Get()
-  async getAllServices(@Query('isActive') isActive?: boolean) {
-    return await this.appService.getAllServices(isActive);
+  @AuthWithRoles('customer', 'driver', 'admin')
+  getAllServices(@Query('isActive') isActive?: boolean) {
+    return this.appService.getAllServices(isActive);
   }
 
-  // ==========================
-  // جلب الخدمات حسب النوع
-  // ==========================
+  /** جلب الخدمات حسب النوع */
   @Get('type/:serviceType')
-  async getServicesByType(@Param('serviceType') serviceType: ServiceType) {
-    return await this.appService.getServicesByType(serviceType);
+  @AuthWithRoles('customer', 'driver', 'admin')
+  getServicesByType(@Param('serviceType') serviceType: ServiceType) {
+    return this.appService.getServicesByType(serviceType);
   }
 
-  // ==========================
-  // جلب الخدمات حسب الفئة
-  // ==========================
+  /** جلب الخدمات حسب الفئة */
   @Get('category/:category')
-  async getServicesByCategory(@Param('category') category: string) {
-    return await this.appService.getServicesByCategory(category);
+  @AuthWithRoles('customer', 'driver', 'admin')
+  getServicesByCategory(@Param('category') category: string) {
+    return this.appService.getServicesByCategory(category);
   }
 
-  // ==========================
-  // عرض أكثر الخدمات طلبًا (الأكثر شعبية)
-  // ==========================
+  /** عرض أكثر الخدمات طلبًا */
   @Get('popular')
-  async getPopularServices(@Query('limit') limit: number = 5) {
-    return await this.appService.getPopularServices(limit);
+  @AuthWithRoles('customer', 'driver', 'admin')
+  getPopularServices(@Query('limit') limit: number = 5) {
+    return this.appService.getPopularServices(limit);
   }
 
-  // ==========================
-  // عرض إحصائيات الخدمات
-  // ==========================
+  /** إحصائيات الخدمات (ADMIN فقط) */
   @Get('stats')
-  async getServiceStatistics() {
-    return await this.appService.getServiceStatistics();
+  @AuthWithRoles('admin')
+  getServiceStatistics() {
+    return this.appService.getServiceStatistics();
   }
 
-  // ==========================
-  // جلب خدمة محددة حسب ID
-  // ==========================
+  /** جلب خدمة محددة */
   @Get(':serviceId')
-  async getServiceById(@Param('serviceId') serviceId: string) {
-    return await this.appService.getServiceById(serviceId);
+  @AuthWithRoles('customer', 'driver', 'admin')
+  getServiceById(@Param('serviceId') serviceId: string) {
+    return this.appService.getServiceById(serviceId);
   }
 
-  // ==========================
-  // تحديث بيانات خدمة موجودة
-  // ==========================
+  // =====================================================
+  // 🛠 ADMIN فقط
+  // =====================================================
+
+  /** إنشاء خدمة جديدة */
+  @Post()
+  @AuthWithRoles('admin')
+  createService(@Body() createServiceDto: CreateServiceDto) {
+    return this.appService.createService(createServiceDto);
+  }
+
+  /** تحديث بيانات خدمة */
   @Put(':serviceId')
-  async updateService(
+  @AuthWithRoles('admin')
+  updateService(
     @Param('serviceId') serviceId: string,
     @Body() updateServiceDto: UpdateServiceDto,
   ) {
-    return await this.appService.updateService(serviceId, updateServiceDto);
+    return this.appService.updateService(serviceId, updateServiceDto);
   }
 
-  // ==========================
-  // زيادة عدد الطلبات على الخدمة
-  // ==========================
+  /** زيادة عدد الطلبات على الخدمة */
   @Put(':serviceId/order-count')
-  async increaseOrderCount(@Param('serviceId') serviceId: string) {
-    return await this.appService.increaseOrderCount(serviceId);
+  @AuthWithRoles('admin')
+  increaseOrderCount(@Param('serviceId') serviceId: string) {
+    return this.appService.increaseOrderCount(serviceId);
   }
 
-  // ==========================
-  // تحديث تقييم الخدمة (averageRating)
-  // ==========================
+  /** تحديث تقييم الخدمة */
   @Put(':serviceId/rating')
-  async updateServiceRating(
+  @AuthWithRoles('admin')
+  updateServiceRating(
     @Param('serviceId') serviceId: string,
     @Body() data: { rating: number },
   ) {
-    return await this.appService.updateServiceRating(serviceId, data.rating);
+    return this.appService.updateServiceRating(serviceId, data.rating);
   }
 
-  // ==========================
-  // تعطيل الخدمة (لن تظهر ضمن الاستعلامات النشطة)
-  // ==========================
+  /** تعطيل الخدمة */
   @Put(':serviceId/deactivate')
-  async deactivateService(@Param('serviceId') serviceId: string) {
-    return await this.appService.deactivateService(serviceId);
+  @AuthWithRoles('admin')
+  deactivateService(@Param('serviceId') serviceId: string) {
+    return this.appService.deactivateService(serviceId);
   }
 
-  // ==========================
-  // إعادة تفعيل الخدمة
-  // ==========================
+  /** إعادة تفعيل الخدمة */
   @Put(':serviceId/activate')
-  async activateService(@Param('serviceId') serviceId: string) {
-    return await this.appService.activateService(serviceId);
+  @AuthWithRoles('admin')
+  activateService(@Param('serviceId') serviceId: string) {
+    return this.appService.activateService(serviceId);
   }
 
-  // ==========================
-  // حذف خدمة نهائيًا
-  // ==========================
+  /** حذف خدمة نهائيًا */
   @Delete(':serviceId')
-  async deleteService(@Param('serviceId') serviceId: string) {
-    return await this.appService.deleteService(serviceId);
+  @AuthWithRoles('admin')
+  deleteService(@Param('serviceId') serviceId: string) {
+    return this.appService.deleteService(serviceId);
   }
 }

@@ -1,10 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryDto, UpdateInventoryDto } from './inventory.dto';
 import { ItemType } from './inventory.schema';
 import { AuthWithRoles } from '../auth/decorators/auth.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('inventory')
+@UseGuards(JwtAuthGuard)
+
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 

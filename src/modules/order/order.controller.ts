@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { OrderService } from './order.service';
@@ -21,8 +22,10 @@ import { OrderType, OrderStatus } from './order.schema';
 // 🔐 Auth
 import { AuthWithRoles } from '../auth/decorators/auth.decorator';
 import { UserId } from '../auth/decorators/user-id.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('orders')
+@UseGuards(JwtAuthGuard)
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
@@ -31,7 +34,7 @@ export class OrderController {
   // =====================================================
 
   /** إنشاء طلب جديد */
-  @Post("create/order")
+  @Post('create/order')
   @AuthWithRoles('customer')
   createOrder(
     @UserId() userId: string,
@@ -50,9 +53,9 @@ export class OrderController {
     return this.orderService.getOrdersByUserId(userId, status);
   }
 
-  /** جلب طلب محدد (لصاحب الطلب أو الأدمن) */
+  /** جلب طلب محدد (لصاحب الطلب أو الأدمن أو السائق) */
   @Get(':orderId')
-  @AuthWithRoles('customer', 'admin')
+  @AuthWithRoles('customer', 'admin', 'driver')
   getOrderById(@Param('orderId') orderId: string) {
     return this.orderService.getOrderById(orderId);
   }
@@ -93,6 +96,16 @@ export class OrderController {
     @Query('status') status?: OrderStatus,
   ) {
     return this.orderService.getOrdersByDriverId(driverId, status);
+  }
+
+  /** ✅ جديد: تحديث حالة الطلب من السائق (قبول/رفض) */
+  @Put(':orderId/status')
+  @AuthWithRoles('driver', 'admin')
+  updateOrderStatus(
+    @Param('orderId') orderId: string,
+    @Body() dto: UpdateOrderStatusDto & { driverId?: string },
+  ) {
+    return this.orderService.updateOrderStatus(orderId, dto);
   }
 
   /** بدء تنفيذ الطلب */
@@ -155,18 +168,6 @@ export class OrderController {
   ) {
     return this.orderService.assignDriverToOrder(orderId, body.driverId);
   }
-
-  /** تحديث حالة الطلب */
-  @Put(':orderId/status')
-  @AuthWithRoles('admin')
-  updateOrderStatus(
-    @Param('orderId') orderId: string,
-    @Body() dto: UpdateOrderStatusDto,
-  ) {
-    return this.orderService.updateOrderStatus(orderId, dto);
-  }
-
-
 
   /** إحصائيات الطلبات */
   @Get('stats/all')
